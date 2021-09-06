@@ -1,0 +1,5 @@
+While system is booting quikly press key 'Shift'
+
+By pressing 'Tab', check if system is alive
+
+Then type 'live init=/bin/bash'
